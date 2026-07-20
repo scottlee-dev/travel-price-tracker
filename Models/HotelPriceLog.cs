@@ -12,7 +12,7 @@ public class HotelPriceLog
 
     public decimal Price { get; set; }
 
-    public DateTime ChecInDate { get; set; }
+    public DateTime CheckInDate { get; set; }
     public DateTime CheckOutDate { get; set; }
 
     public required string Source { get; set; }
