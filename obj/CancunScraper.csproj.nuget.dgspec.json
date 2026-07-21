@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj": {}
+    "d:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj": {}
   },
   "projects": {
-    "D:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj": {
+    "d:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj",
+        "projectUniqueName": "d:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj",
         "projectName": "CancunScraper",
-        "projectPath": "D:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj",
+        "projectPath": "d:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj",
         "packagesPath": "C:\\Users\\lsy84\\.nuget\\packages\\",
-        "outputPath": "D:\\myProject\\CancunPriceTracker\\CancunScraper\\obj\\",
+        "outputPath": "d:\\myProject\\CancunPriceTracker\\CancunScraper\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\lsy84\\AppData\\Roaming\\NuGet\\NuGet.Config"

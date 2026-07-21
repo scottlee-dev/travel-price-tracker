@@ -1,22 +1,25 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using CancunScraper.Data;
 using CancunScraper.Services;
 
 namespace CancunScraper;
 
-
-
-
 public class Worker : BackgroundService
 {
-
     private readonly ILogger<Worker> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
 
-public Worker(ILogger<Worker> logger, IServiceScopeFactory scopeFactory)
+    public Worker(ILogger<Worker> logger, IServiceScopeFactory scopeFactory)
     {
         _logger = logger;
         _scopeFactory = scopeFactory;
     }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Costco Travel Price Tracker Worker started at: {time}", DateTimeOffset.Now);
@@ -31,16 +34,17 @@ public Worker(ILogger<Worker> logger, IServiceScopeFactory scopeFactory)
                 var dbContext = scope.ServiceProvider.GetRequiredService<TravelDbContext>();
 
                 string targetResort = "Grand Fiesta Americana Coral Beach";
-                DateTime checkInDate = new DateTime(2027, 3, 15, 0, 0, 0, DateTimeKind.Utc);
-                DateTime checkOutDate = new DateTime(2027, 3, 20, 0, 0, 0, DateTimeKind.Utc);
+                
+                DateTime checkInDate = new DateTime(2027, 3, 22, 0, 0, 0, DateTimeKind.Utc);
+                DateTime checkOutDate = new DateTime(2027, 3, 26, 0, 0, 0, DateTimeKind.Utc);
 
                 _logger.LogInformation("Starting Playwright scraper for: {Resort} ({CheckIn:yyyy-MM-dd} to {CheckOut:yyyy-MM-dd})",
-                                    targetResort, checkInDate, checkOutDate);
+                    targetResort, checkInDate, checkOutDate);
+                
                 var priceLog = await scraperService.ScrapePriceAsync(targetResort, checkInDate, checkOutDate);
 
                 if (priceLog != null)
                 {
-                    // 4. Save the scraped pricing record into the PostgreSQL database
                     dbContext.HotelPrices.Add(priceLog);
                     await dbContext.SaveChangesAsync(stoppingToken);
 
@@ -57,10 +61,8 @@ public Worker(ILogger<Worker> logger, IServiceScopeFactory scopeFactory)
                 _logger.LogError(ex, "An error occurred while running the scraping pipeline.");
             }
 
-            // 5. Wait before starting the next cycle (Set to 30 seconds for testing; change to hours for production!)
             _logger.LogInformation("Sleeping for 30 seconds before the next check...\n-------------------------------------------------------------");
             await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
         }
-
     }
 }
