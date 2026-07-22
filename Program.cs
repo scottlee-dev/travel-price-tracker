@@ -1,19 +1,26 @@
-using CancunScraper;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using CancunScraper.Data;
 using CancunScraper.Services;
-using Microsoft.EntityFrameworkCore;
 
-var builder = Host.CreateApplicationBuilder(args);
+namespace CancunScraper;
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found in appsettings.json.");
+public class Program
+{
+    public static void Main(string[] args)
+    {
+        var builder = Host.CreateApplicationBuilder(args);
 
+        builder.Services.AddDbContext<TravelDbContext>(options =>
+            options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+        builder.Services.AddScoped<OfficialResortScraperService>();
 
-builder.Services.AddDbContext<TravelDbContext>(option => option.UseNpgsql(connectionString));
+        builder.Services.AddHostedService<Worker>();
 
-
-builder.Services.AddTransient<CostcoScraperService>();
-builder.Services.AddHostedService<Worker>();
-
-var host = builder.Build();
-host.Run();
+        var host = builder.Build();
+        host.Run();
+    }
+}
