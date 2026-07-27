@@ -57,7 +57,7 @@ public class Worker : BackgroundService
                     _logger.LogInformation("Successfully saved official price to DB! Price: ${Price}", priceLog.Price);
 
     
-                    decimal targetPriceThreshold = 2100.00m;
+                    decimal targetPriceThreshold = 950.00m;
 
                     if (priceLog.Price <= targetPriceThreshold)
                     {
