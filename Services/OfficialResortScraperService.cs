@@ -51,15 +51,11 @@ public class OfficialResortScraperService
 
         await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 90000 });
 
-        await page.WaitForTimeoutAsync(10000);
+        await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await page.WaitForTimeoutAsync(15000);
 
-        await page.WaitForSelectorAsync("h3.app_subheading2", new() { Timeout = 120000 });
-
-        // Find rate plan (regex 매칭으로 안정화)
-        var ratePlanHeader = page.Locator("h3.app_subheading2")
-    .Filter(new() { HasText = "I Prefer" });
-
-        var ratePlanBlock = ratePlanHeader.Locator("xpath=../..");
+        var ratePlanBlock = page.Locator("div.thumb-cards_rate.thumb-cards_show")
+            .Filter(new() { HasText = "I Prefer" });
 
         if (await ratePlanBlock.CountAsync() == 0)
         {
@@ -67,48 +63,29 @@ public class OfficialResortScraperService
             return 0m;
         }
 
-        var priceText = await ratePlanBlock.Locator(".price").First.InnerTextAsync();
+        string priceText;
+        try
+        {
+            priceText = await ratePlanBlock.Locator(".thumb-cards_price").First.InnerTextAsync();
+        }
+        catch (TimeoutException ex)
+        {
+            _logger.LogError(ex, "[Scraper] Timeout while locating price element.");
+            return 0m;
+        }
 
         if (!decimal.TryParse(priceText.Replace("$", "").Replace(",", ""), out var price))
         {
             _logger.LogWarning("[Scraper] Selector price parse failed. Trying Regex fallback...");
 
             string pageText = await page.Locator("body").InnerTextAsync();
-            decimal parsedPrice = 0m;
+            price = TryParsePriceFromText(pageText);
 
-            Match match = Regex.Match(
-                pageText,
-                @"I\s*PREFER\s*OFFER[^$]*\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)",
-                RegexOptions.IgnoreCase
-            );
-
-            if (match.Success)
-            {
-                string priceString = match.Groups[1].Value.Replace(",", "");
-                decimal.TryParse(priceString, out parsedPrice);
-            }
-
-            if (parsedPrice == 0m)
-            {
-                Match fallbackMatch = Regex.Match(
-                    pageText,
-                    @"\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)"
-                );
-
-                if (fallbackMatch.Success)
-                {
-                    string priceString = fallbackMatch.Groups[1].Value.Replace(",", "");
-                    decimal.TryParse(priceString, out parsedPrice);
-                }
-            }
-
-            if (parsedPrice == 0m)
+            if (price == 0m)
             {
                 _logger.LogWarning("[Scraper] Regex fallback also failed.");
                 return 0m;
             }
-
-            price = parsedPrice;
         }
 
         _logger.LogInformation("[Scraper] SUCCESS! Parsed price: ${Price}", price);
@@ -120,6 +97,15 @@ public class OfficialResortScraperService
         return price;
     }
 
+    private decimal TryParsePriceFromText(string text)
+    {
+        var match = Regex.Match(text, @"\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)");
+        if (match.Success && decimal.TryParse(match.Groups[1].Value.Replace(",", ""), out var price))
+            return price;
+
+        return 0m;
+    }
+
     private void LogPrice(decimal price)
     {
         var line = $"{DateTime.UtcNow:yyyy-MM-dd},{price}";
@@ -129,16 +115,28 @@ public class OfficialResortScraperService
 
     private void GenerateTrendGraph()
     {
-        var lines = File.ReadAllLines(CsvPath)
-            .TakeLast(10)
+        if (!File.Exists(CsvPath))
+        {
+            _logger.LogWarning("[Scraper] No CSV file found for graph.");
+            return;
+        }
+
+        var lines = File.ReadAllLines(CsvPath);
+        if (lines.Length == 0)
+        {
+            _logger.LogWarning("[Scraper] No data to plot.");
+            return;
+        }
+
+        var last = lines.TakeLast(10)
             .Select(l => l.Split(','))
             .Select(p => new { Date = DateTime.Parse(p[0]), Price = decimal.Parse(p[1]) })
             .ToList();
 
         var plt = new ScottPlot.Plot();
         plt.Add.Scatter(
-            lines.Select(x => x.Date.ToOADate()).ToArray(),
-            lines.Select(x => (double)x.Price).ToArray()
+            last.Select(x => x.Date.ToOADate()).ToArray(),
+            last.Select(x => (double)x.Price).ToArray()
         );
 
         plt.Axes.DateTimeTicksBottom();
