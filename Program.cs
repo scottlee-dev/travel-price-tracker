@@ -26,7 +26,7 @@ string searchRate = Environment.GetEnvironmentVariable("SEARCH_RATE")
     ?? "I Prefer Member Rate";
 
 string thresholdEnv = Environment.GetEnvironmentVariable("TARGET_THRESHOLD")
-    ?? "970.00";
+    ?? "955.00";
 
 decimal targetThreshold = decimal.Parse(thresholdEnv);
 
@@ -139,15 +139,13 @@ static void SavePriceHistoryAndGenerateChart(decimal currentPrice)
 
 static void UpdateReadme(decimal currentPrice, decimal targetPrice, string room, string rate, DateTime inDate, DateTime outDate)
 {
+    string readmePath = "README.md";
     bool isDeal = currentPrice <= targetPrice;
     string statusBadge = isDeal 
         ? " **DEAL DETECTED (Below Target!)**" 
         : " **Monitoring (Above Target)**";
 
-    string content = $@"#  Cancun Resort Price Tracker
-
-Automated price tracking pipeline built with **C# .NET**, **Playwright**, and **GitHub Actions**.
-
+    string dashboardContent = $@"<!-- START_DASHBOARD -->
 ##  Price Trend Graph
 
 ![Price Trend](price_trend.png)
@@ -164,10 +162,44 @@ Automated price tracking pipeline built with **C# .NET**, **Playwright**, and **
 | **Target Threshold** | **${targetPrice}** |
 | **Status** | {statusBadge} |
 | **Last Updated** | `{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC` |
+<!-- END_DASHBOARD -->";
+
+    if (File.Exists(readmePath))
+    {
+        string existingContent = File.ReadAllText(readmePath);
+        
+        if (existingContent.Contains("<!-- START_DASHBOARD -->") && existingContent.Contains("<!-- END_DASHBOARD -->"))
+        {
+            int startIndex = existingContent.IndexOf("<!-- START_DASHBOARD -->");
+            int endIndex = existingContent.IndexOf("<!-- END_DASHBOARD -->") + "<!-- END_DASHBOARD -->".Length;
+            
+            string newContent = existingContent.Remove(startIndex, endIndex - startIndex)
+                                               .Insert(startIndex, dashboardContent);
+            
+            File.WriteAllText(readmePath, newContent);
+            return;
+        }
+    }
+
+    string fullTemplate = $@"#  Cancun Resort Price Tracker
+
+Automated price tracking pipeline built with **C# .NET**, **Playwright**, and **GitHub Actions**.
+
+## 📌 Project Overview
+This project continuously monitors room rates for Grand Fiesta Americana Coral Beach Cancun Resort. 
+When a drop below the target price threshold is detected, automated email notifications are dispatched.
+
+{dashboardContent}
+
+## 🏗️ Architecture
+- **Language & Framework:** C# .NET 10 / Playwright
+- **Automation:** GitHub Actions (Cron Scheduler)
+- **Data Persistence:** PostgreSQL / CSV History
+- **Visualization:** ScottPlot
 
 ---
 *This repository is automatically updated by GitHub Actions when new price points are scraped.*
 ";
 
-    File.WriteAllText("README.md", content);
+    File.WriteAllText(readmePath, fullTemplate);
 }
