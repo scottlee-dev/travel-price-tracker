@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 
 namespace CancunScraper.Services;
 
-
 public class EmailService
 {
     private readonly IConfiguration _config;
@@ -18,7 +17,9 @@ public class EmailService
         _config = config;
         _logger = logger;
     }
-    public async Task SendPriceAlertAsync(string resortName, decimal currentPrice, string checkInDate)
+
+
+    public async Task SendEmailAsync(string subject, string body)
     {
         var emailSettings = _config.GetSection("EmailSettings");
         string senderEmail = emailSettings["SenderEmail"];
@@ -32,15 +33,9 @@ public class EmailService
             message.From = new MailAddress(senderEmail, senderName);
             message.To.Add(new MailAddress(recipientEmail));
 
-
-            message.Subject = $" [PRICE DROP ALERT] {resortName} is now ${currentPrice}!";
-            message.Body = $"Great news!\n\n" +
-                                       $"The price for {resortName} (Check-in: {checkInDate}) has dropped to our target!\n" +
-                                       $"Current Price: ${currentPrice}\n\n" +
-                                       $"Book now before it changes!";
-
+            message.Subject = subject;
+            message.Body = body;
             message.IsBodyHtml = false;
-
 
             using var smtpClient = new SmtpClient(emailSettings["SmtpServer"], int.Parse(emailSettings["SmtpPort"]))
             {
@@ -48,13 +43,13 @@ public class EmailService
                 EnableSsl = true
             };
 
-            _logger.LogInformation("[EmailService] Sending price alert email to {Recipient}...", recipientEmail);
+            _logger.LogInformation("[EmailService] Sending email to {Recipient}...", recipientEmail);
             await smtpClient.SendMailAsync(message);
             _logger.LogInformation("[EmailService] Email sent successfully!");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[EmailService] Failed to send email alert.");
+            _logger.LogError(ex, "[EmailService] Failed to send email.");
         }
     }
 }

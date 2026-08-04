@@ -8,6 +8,9 @@
     ".NETCoreApp,Version=v10.0": {
       "CancunScraper/1.0.0": {
         "dependencies": {
+          "Amazon.Lambda.Core": "2.5.0",
+          "Amazon.Lambda.RuntimeSupport": "1.12.0",
+          "Amazon.Lambda.Serialization.SystemTextJson": "2.4.4",
           "Microsoft.EntityFrameworkCore": "10.0.10",
           "Microsoft.EntityFrameworkCore.Design": "10.0.10",
           "Microsoft.Extensions.Hosting": "10.0.10",
@@ -16,6 +19,37 @@
         },
         "runtime": {
           "CancunScraper.dll": {}
+        }
+      },
+      "Amazon.Lambda.Core/2.5.0": {
+        "runtime": {
+          "lib/net8.0/Amazon.Lambda.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "Amazon.Lambda.RuntimeSupport/1.12.0": {
+        "dependencies": {
+          "Amazon.Lambda.Core": "2.5.0",
+          "SnapshotRestore.Registry": "1.0.0"
+        },
+        "runtime": {
+          "lib/net8.0/Amazon.Lambda.RuntimeSupport.dll": {
+            "assemblyVersion": "1.12.0.0",
+            "fileVersion": "1.12.0.0"
+          }
+        }
+      },
+      "Amazon.Lambda.Serialization.SystemTextJson/2.4.4": {
+        "dependencies": {
+          "Amazon.Lambda.Core": "2.5.0"
+        },
+        "runtime": {
+          "lib/net8.0/Amazon.Lambda.Serialization.SystemTextJson.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
         }
       },
       "Humanizer.Core/2.14.1": {
@@ -832,6 +866,14 @@
           }
         }
       },
+      "SnapshotRestore.Registry/1.0.0": {
+        "runtime": {
+          "lib/net8.0/SnapshotRestore.Registry.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
       "System.CodeDom/6.0.0": {
         "runtime": {
           "lib/net6.0/System.CodeDom.dll": {
@@ -929,6 +971,27 @@
       "type": "project",
       "serviceable": false,
       "sha512": ""
+    },
+    "Amazon.Lambda.Core/2.5.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-JrDdnjUPFcZ74VDjVc2kMucyUpjHnN77Al9Owc17DYYFYAVav46fLRl1BlJj0UPhJxTakoB/h1PhU/6J005Qrw==",
+      "path": "amazon.lambda.core/2.5.0",
+      "hashPath": "amazon.lambda.core.2.5.0.nupkg.sha512"
+    },
+    "Amazon.Lambda.RuntimeSupport/1.12.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-bmLjqPi2+qyNk1Lt958iE0rAccLNUp2ZDBQ5V6clGtVkLcV/Jr27mJu8mNoSsvwlrRTABLbfIkydc6aTlULq/A==",
+      "path": "amazon.lambda.runtimesupport/1.12.0",
+      "hashPath": "amazon.lambda.runtimesupport.1.12.0.nupkg.sha512"
+    },
+    "Amazon.Lambda.Serialization.SystemTextJson/2.4.4": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-iv/cvqFuZ3v3+NFDyof0IJZvU+4kdpzOe3pWSBwp9HB885I+D32WQxuid9V4GnvRynER9XnWMPaDmImX8qH5cA==",
+      "path": "amazon.lambda.serialization.systemtextjson/2.4.4",
+      "hashPath": "amazon.lambda.serialization.systemtextjson.2.4.4.nupkg.sha512"
     },
     "Humanizer.Core/2.14.1": {
       "type": "package",
@@ -1265,6 +1328,13 @@
       "sha512": "sha512-IPGrrZnRkuW7OlHDhUESZz4G5DLkW7Nej/O3Cx+0iTsgyU5XJxBgpsvTHLloo3WWuAKKbDHXBvWPVkX1deRh1Q==",
       "path": "npgsql.entityframeworkcore.postgresql/10.0.3",
       "hashPath": "npgsql.entityframeworkcore.postgresql.10.0.3.nupkg.sha512"
+    },
+    "SnapshotRestore.Registry/1.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-/XOtWCRU9u1am17f0EDZbBlnAsbC2HE7CWGxWYbvbAyAeJQI2sl8gEubbC1hLMWco7sN3UiTFudI4+FUiuDi0A==",
+      "path": "snapshotrestore.registry/1.0.0",
+      "hashPath": "snapshotrestore.registry.1.0.0.nupkg.sha512"
     },
     "System.CodeDom/6.0.0": {
       "type": "package",

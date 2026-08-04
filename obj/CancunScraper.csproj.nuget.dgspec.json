@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "d:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj": {}
+    "D:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj": {}
   },
   "projects": {
-    "d:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj": {
+    "D:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj",
+        "projectUniqueName": "D:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj",
         "projectName": "CancunScraper",
-        "projectPath": "d:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj",
+        "projectPath": "D:\\myProject\\CancunPriceTracker\\CancunScraper\\CancunScraper.csproj",
         "packagesPath": "C:\\Users\\lsy84\\.nuget\\packages\\",
-        "outputPath": "d:\\myProject\\CancunPriceTracker\\CancunScraper\\obj\\",
+        "outputPath": "D:\\myProject\\CancunPriceTracker\\CancunScraper\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\lsy84\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -46,6 +46,18 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "dependencies": {
+            "Amazon.Lambda.Core": {
+              "target": "Package",
+              "version": "[2.5.0, )"
+            },
+            "Amazon.Lambda.RuntimeSupport": {
+              "target": "Package",
+              "version": "[1.12.0, )"
+            },
+            "Amazon.Lambda.Serialization.SystemTextJson": {
+              "target": "Package",
+              "version": "[2.4.4, )"
+            },
             "Microsoft.EntityFrameworkCore": {
               "target": "Package",
               "version": "[10.0.10, )"
@@ -67,6 +79,10 @@
             "Npgsql.EntityFrameworkCore.PostgreSQL": {
               "target": "Package",
               "version": "[10.0.3, )"
+            },
+            "ScottPlot": {
+              "target": "Package",
+              "version": "[5.1.59, )"
             }
           },
           "imports": [

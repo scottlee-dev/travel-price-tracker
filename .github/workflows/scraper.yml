@@ -1,0 +1,49 @@
+name: Cancun Price Tracker Pipeline
+
+on:
+  schedule:
+
+    - cron: '0 13 * * *'
+  workflow_dispatch: 
+
+jobs:
+  scrape-and-update:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install Playwright & Dependencies
+        run: |
+          dotnet build
+          dotnet tool install --global Microsoft.Playwright.CLI
+          playwright install --with-deps chromium
+
+      - name: Run Scraper
+        env:
+          ConnectionStrings__DefaultConnection: ${{ secrets.DB_CONNECTION_STRING }}
+          EmailSettings__SenderPassword: ${{ secrets.EMAIL_SENDER_PASSWORD }}
+          TARGET_THRESHOLD: "970.00"
+          CHECK_IN: "2027-03-22"
+          CHECK_OUT: "2027-03-26"
+          ROUTINE_INTERVAL_DAYS: "3"
+          SEARCH_ROOM: "Ocean Front Suite Double (2 Queen)"
+          SEARCH_RATE: "I Prefer Member Rate"
+        run: dotnet run --configuration Release
+
+      - name: Commit & Push Dashboard Updates
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+          git add README.md price_trend.png price_history.csv
+          git diff-index --quiet HEAD || git commit -m "📊 auto-update: price trend chart and README [skip ci]"
+          git push

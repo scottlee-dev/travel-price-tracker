@@ -249,3 +249,7 @@ D:\myProject\CancunPriceTracker\CancunScraper\bin\Debug\net10.0\.playwright\pack
 D:\myProject\CancunPriceTracker\CancunScraper\bin\Debug\net10.0\playwright.ps1
 D:\myProject\CancunPriceTracker\CancunScraper\bin\Debug\net10.0\Microsoft.Bcl.AsyncInterfaces.dll
 D:\myProject\CancunPriceTracker\CancunScraper\bin\Debug\net10.0\Microsoft.Playwright.dll
+d:\myProject\CancunPriceTracker\CancunScraper\bin\Debug\net10.0\Amazon.Lambda.Core.dll
+d:\myProject\CancunPriceTracker\CancunScraper\bin\Debug\net10.0\Amazon.Lambda.RuntimeSupport.dll
+d:\myProject\CancunPriceTracker\CancunScraper\bin\Debug\net10.0\Amazon.Lambda.Serialization.SystemTextJson.dll
+d:\myProject\CancunPriceTracker\CancunScraper\bin\Debug\net10.0\SnapshotRestore.Registry.dll
