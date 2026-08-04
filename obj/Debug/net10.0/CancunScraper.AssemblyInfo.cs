@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CancunScraper")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2f0106cc93ae3215a63a85f9d6dbfda3d9150a14")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d9390402939e94b4059629ac6a05323de4247180")]
 [assembly: System.Reflection.AssemblyProductAttribute("CancunScraper")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CancunScraper")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

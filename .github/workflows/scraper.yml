@@ -2,7 +2,7 @@ name: Cancun Price Tracker Pipeline
 
 on:
   schedule:
-    - cron: '0 13 * * *'
+    - cron: '0 13 * * *'   # run once per day at 13:00 UTC
   workflow_dispatch:
 
 jobs:
@@ -22,7 +22,7 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-          include-prerelease: true   
+          include-prerelease: true
 
       - name: Install Playwright & Dependencies
         run: |
@@ -32,12 +32,14 @@ jobs:
 
       - name: Run Scraper
         env:
-          ConnectionStrings__DefaultConnection: ${{ secrets.DB_CONNECTION_STRING }}
+          EmailSettings__SenderEmail: ${{ secrets.EMAIL_SENDER_EMAIL }}
           EmailSettings__SenderPassword: ${{ secrets.EMAIL_SENDER_PASSWORD }}
+          EmailSettings__SenderName: ${{ secrets.EMAIL_SENDER_NAME }}
+          EmailSettings__RecipientEmail: ${{ secrets.EMAIL_RECIPIENT_EMAIL }}
+
           TARGET_THRESHOLD: "970.00"
           CHECK_IN: "2027-03-22"
           CHECK_OUT: "2027-03-26"
-          ROUTINE_INTERVAL_DAYS: "3"
           SEARCH_ROOM: "Ocean Front Suite Double (2 Queen)"
           SEARCH_RATE: "I Prefer Member Rate"
         run: dotnet run --configuration Release
@@ -50,8 +52,7 @@ jobs:
           git add README.md price_trend.png price_history.csv
 
           if ! git diff-index --quiet HEAD; then
-            git commit -m "auto-update: dashboard refresh [skip scraper]"
-            git fetch origin main
-            git merge --strategy-option ours origin/main
+            git commit -m "auto-update: dashboard refresh [skip ci]"
+            git pull --rebase origin main
             git push origin main
           fi

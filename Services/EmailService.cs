@@ -2,27 +2,18 @@ using System;
 using System.Net;
 using System.Net.Mail;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 
 namespace CancunScraper.Services;
 
 public class EmailService
 {
-    private readonly ILogger<EmailService> _logger;
-
-    public EmailService(ILogger<EmailService> logger)
-    {
-        _logger = logger;
-    }
-
     public async Task SendEmailAsync(string subject, string body)
     {
         string senderEmail = Environment.GetEnvironmentVariable("EmailSettings__SenderEmail");
-        string senderPassword = Environment.GetEnvironmentVariable("EmailSettings__SenderPassword"); // Gmail 앱 비밀번호
+        string senderPassword = Environment.GetEnvironmentVariable("EmailSettings__SenderPassword");
         string senderName = Environment.GetEnvironmentVariable("EmailSettings__SenderName");
         string recipientEmail = Environment.GetEnvironmentVariable("EmailSettings__RecipientEmail");
 
-        // Gmail SMTP 고정값
         string smtpServer = "smtp.gmail.com";
         int smtpPort = 587;
 
@@ -41,13 +32,21 @@ public class EmailService
                 EnableSsl = true
             };
 
-            _logger.LogInformation("[EmailService] Sending email to {Recipient}...", recipientEmail);
             await smtpClient.SendMailAsync(message);
-            _logger.LogInformation("[EmailService] Email sent successfully!");
+            Console.WriteLine($"[EmailService] Email sent successfully to {recipientEmail}");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[EmailService] Failed to send email.");
+            Console.WriteLine($"[EmailService] Failed to send email: {ex.Message}");
         }
     }
+
+    public void SendAlert(decimal price)
+    {
+        string subject = $"[PRICE DROP ALERT] Cancun Resort Deal - ${price}";
+        string body = $"The price dropped below your target of ${TargetPrice}\n\nCurrent Price: ${price}\nBook it now before it changes.";
+        SendEmailAsync(subject, body).Wait();
+    }
+
+    private const decimal TargetPrice = 950m;
 }

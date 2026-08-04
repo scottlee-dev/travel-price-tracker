@@ -1,35 +1,23 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using CancunScraper.Services;
-using ScottPlot;
+using Microsoft.Extensions.Logging;
 
-var builder = Host.CreateApplicationBuilder(args);
+var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+var logger = loggerFactory.CreateLogger<OfficialResortScraperService>();
 
-builder.Services.AddScoped<OfficialResortScraperService>();
-builder.Services.AddScoped<EmailService>();
-
-using var host = builder.Build();
-
-var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Scraper");
-logger.LogInformation("Starting Cancun price scraping job on GitHub Actions...");
-
-// --- Environment Variables ---
-string searchRoom = Environment.GetEnvironmentVariable("SEARCH_ROOM")
+// Scraper configuration
+string resortName = "Grand Fiesta Americana Coral Beach Cancun Resort";
+string targetRoomName = Environment.GetEnvironmentVariable("SEARCH_ROOM") 
     ?? "Ocean Front Suite Double (2 Queen)";
-
-string searchRate = Environment.GetEnvironmentVariable("SEARCH_RATE")
+string targetRatePlan = Environment.GetEnvironmentVariable("SEARCH_RATE") 
     ?? "I Prefer Member Rate";
 
-decimal targetThreshold = decimal.TryParse(
+decimal targetPrice = decimal.TryParse(
     Environment.GetEnvironmentVariable("TARGET_THRESHOLD"), out var th)
-    ? th : 955.00m;
+    ? th : 955m;
 
+// Dates (static or environment)
 DateTime checkIn = DateTime.TryParse(
     Environment.GetEnvironmentVariable("CHECK_IN"), out var ci)
     ? ci : new DateTime(2027, 3, 22);
@@ -38,120 +26,52 @@ DateTime checkOut = DateTime.TryParse(
     Environment.GetEnvironmentVariable("CHECK_OUT"), out var co)
     ? co : new DateTime(2027, 3, 26);
 
-int routineInterval = int.TryParse(
-    Environment.GetEnvironmentVariable("ROUTINE_INTERVAL_DAYS"), out var ri)
-    ? ri : 3;
+// Initialize scraper
+var scraper = new OfficialResortScraperService(logger);
 
-// --- Main Execution ---
-try
+logger.LogInformation("Starting Cancun price scraping job...");
+
+decimal price = await scraper.ScrapeOfficialWebsiteAsync(
+    resortName,
+    checkIn,
+    checkOut,
+    targetRoomName,
+    targetRatePlan,
+    adults: 3,
+    children: 0
+);
+
+// If scrape failed
+if (price <= 0)
 {
-    using var scope = host.Services.CreateScope();
-    var scraperService = scope.ServiceProvider.GetRequiredService<OfficialResortScraperService>();
-    var emailService = scope.ServiceProvider.GetRequiredService<EmailService>();
+    logger.LogWarning("Scraper returned no price. Exiting.");
+    return;
+}
 
-    decimal currentPrice = await scraperService.ScrapeOfficialWebsiteAsync(
-        resortName: "Grand Fiesta Americana Coral Beach Cancun Resort",
-        checkIn: checkIn,
-        checkOut: checkOut,
-        targetRoomName: searchRoom,
-        targetRatePlan: searchRate,
-        adults: 3,
-        children: 0
+// Email alert if below target
+if (price <= targetPrice)
+{
+    var emailService = new EmailService();
+    await emailService.SendEmailAsync(
+        subject: $"[PRICE DROP ALERT] Cancun Resort Deal - ${price}",
+        body: $"The price dropped below your target of ${targetPrice}\n\n" +
+              $"Current Price: ${price}\nRoom: {targetRoomName}\nRate Plan: {targetRatePlan}\n\n" +
+              $"Book it now before it changes."
     );
-
-    if (currentPrice > 0)
-    {
-        if (currentPrice <= targetThreshold)
-        {
-            logger.LogInformation("PRICE DROP ALERT! Sending email...");
-            await emailService.SendEmailAsync(
-                subject: $"[PRICE DROP ALERT] Cancun Resort Deal - ${currentPrice}",
-                body: $"The price dropped below your target of ${targetThreshold}\n\n" +
-                      $"Current Price: ${currentPrice}\nRoom: {searchRoom}\nRate Plan: {searchRate}\n\n" +
-                      $"Book it now before it changes."
-            );
-        }
-
-        if (DateTime.UtcNow.DayOfYear % routineInterval == 0)
-        {
-            logger.LogInformation("Sending routine status report email...");
-            await emailService.SendEmailAsync(
-                subject: $"[Status Report] Cancun Tracker Running (Current: ${currentPrice})",
-                body: $"The price tracker executed.\n\n" +
-                      $"- Current Price: ${currentPrice}\n" +
-                      $"- Target Threshold: ${targetThreshold}\n" +
-                      $"- Room: {searchRoom}\n" +
-                      $"- Rate Plan: {searchRate}\n" +
-                      $"- Checked At: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC\n" +
-                      $"Routine interval: {routineInterval} days."
-            );
-        }
-
-        SavePriceHistoryAndGenerateChart(currentPrice);
-        UpdateReadme(currentPrice, targetThreshold, searchRoom, searchRate, checkIn, checkOut);
-    }
-
-    logger.LogInformation("Scraping job finished successfully.");
-}
-catch (Exception ex)
-{
-    logger.LogError(ex, "An error occurred during the scraping job.");
-    Environment.ExitCode = 1;
 }
 
-// --- Helper Methods ---
-static void SavePriceHistoryAndGenerateChart(decimal currentPrice)
-{
-    string historyFile = "price_history.csv";
-    string todayStr = DateTime.UtcNow.ToString("yyyy-MM-dd");
+// Update README dashboard
+UpdateReadme(price, targetPrice, targetRoomName, targetRatePlan, checkIn, checkOut);
 
-    lock (typeof(Program))
-    {
-        if (!File.Exists(historyFile))
-            File.WriteAllText(historyFile, "Date,Price\n");
+logger.LogInformation("Scraping job finished successfully.");
 
-        File.AppendAllText(historyFile, $"{todayStr},{currentPrice}\n");
-    }
 
-    var lines = File.ReadAllLines(historyFile)
-        .Skip(1)
-        .Where(l => !string.IsNullOrWhiteSpace(l));
+// ------------------ Helper: Update README ------------------
 
-    List<DateTime> dates = new();
-    List<double> prices = new();
-
-    foreach (var line in lines)
-    {
-        var parts = line.Split(',');
-        if (parts.Length == 2 &&
-            DateTime.TryParse(parts[0], out var d) &&
-            double.TryParse(parts[1], out var p))
-        {
-            dates.Add(d);
-            prices.Add(p);
-        }
-    }
-
-    if (dates.Count == 0) return;
-
-    var plt = new Plot();
-    double[] xs = dates.Select(d => d.ToOADate()).ToArray();
-    double[] ys = prices.ToArray();
-
-    var scatter = plt.Add.Scatter(xs, ys);
-    scatter.LineWidth = 2.5f;
-    scatter.Color = ScottPlot.Color.FromHex("#007ACC");
-
-    plt.Axes.DateTimeTicksBottom();
-    plt.Title("Grand Fiesta Americana Coral Beach Price Trend");
-    plt.YLabel("Price ($)");
-
-    plt.SavePng("price_trend.png", 800, 400);
-}
-
-static void UpdateReadme(decimal currentPrice, decimal targetPrice, string room, string rate, DateTime inDate, DateTime outDate)
+void UpdateReadme(decimal currentPrice, decimal targetPrice, string room, string rate, DateTime inDate, DateTime outDate)
 {
     string readmePath = "README.md";
+
     string dashboardContent = $@"<!-- START_DASHBOARD -->
 ## Price Trend Graph
 
