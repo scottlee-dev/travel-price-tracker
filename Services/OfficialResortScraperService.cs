@@ -26,8 +26,11 @@ public class OfficialResortScraperService
         _logger.LogInformation("[Scraper] Initializing Playwright...");
 
         using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
-
+        await using var browser = await playwright.Chromium.LaunchAsync(new()
+        {
+            Headless = true,
+            SlowMo = 250
+        });
         var context = await browser.NewContextAsync(new()
         {
             UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
@@ -46,7 +49,8 @@ public class OfficialResortScraperService
 
         await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 60000 });
 
-        await page.WaitForSelectorAsync(".rate-plan", new() { Timeout = 30000 });
+        await page.WaitForSelectorAsync(".rate-plan", new() { Timeout = 90000 });
+
 
         var ratePlanBlock = page.Locator($"text={targetRatePlan}").Locator("..");
 
@@ -80,24 +84,24 @@ public class OfficialResortScraperService
         _logger.LogInformation("[Scraper] Logged price to CSV.");
     }
 
-   private void GenerateTrendGraph()
-{
-    var lines = File.ReadAllLines(CsvPath)
-        .TakeLast(10)
-        .Select(l => l.Split(','))
-        .Select(p => new { Date = DateTime.Parse(p[0]), Price = decimal.Parse(p[1]) })
-        .ToList();
+    private void GenerateTrendGraph()
+    {
+        var lines = File.ReadAllLines(CsvPath)
+            .TakeLast(10)
+            .Select(l => l.Split(','))
+            .Select(p => new { Date = DateTime.Parse(p[0]), Price = decimal.Parse(p[1]) })
+            .ToList();
 
-    var plt = new ScottPlot.Plot();
-    plt.Add.Scatter(
-        lines.Select(x => x.Date.ToOADate()).ToArray(),
-        lines.Select(x => (double)x.Price).ToArray()
-    );
+        var plt = new ScottPlot.Plot();
+        plt.Add.Scatter(
+            lines.Select(x => x.Date.ToOADate()).ToArray(),
+            lines.Select(x => (double)x.Price).ToArray()
+        );
 
-    plt.Axes.DateTimeTicksBottom();
-    plt.Title("10‑Day Price Trend");
-    plt.SavePng("price_trend.png", 600, 400);
-}
+        plt.Axes.DateTimeTicksBottom();
+        plt.Title("10‑Day Price Trend");
+        plt.SavePng("price_trend.png", 600, 400);
+    }
 
     private void CheckPriceAlert(decimal price)
     {
