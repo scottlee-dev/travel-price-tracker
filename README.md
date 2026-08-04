@@ -23,7 +23,7 @@ This system monitors real‑time room rates, logs historical prices to CSV, and 
 | **Current Price** | **$966** |
 | **Target Threshold** | **$970.00** |
 | **Status** | **DEAL DETECTED** |
-| **Last Updated** | `2026-08-04 21:56:07 UTC` |
+| **Last Updated** | `2026-08-04 22:02:13 UTC` |
 <!-- END_DASHBOARD -->
 
 ---
