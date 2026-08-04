@@ -46,49 +46,54 @@ public class OfficialResortScraperService
         try
         {
             await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 60000 });
-            await page.WaitForTimeoutAsync(10000); // Allow dynamic DOM elements to settle
+            await page.WaitForTimeoutAsync(10000);
 
-            // 1. Scope to the specific Room Card that contains targetRoomName
-            var roomCard = page.Locator("div.thumb-cards_card, div.thumb-cards_item, div.thumb-cards_info-container, div[class*='thumb-cards']")
+            var roomTitle = page.Locator("h2.app_heading1")
                 .Filter(new() { HasText = targetRoomName });
 
-            if (await roomCard.CountAsync() == 0)
+            if (await roomTitle.CountAsync() == 0)
             {
-                _logger.LogWarning("[Scraper] Target room block not found: {RoomName}", targetRoomName);
+                _logger.LogWarning("[Scraper] Target room title element not found: {RoomName}", targetRoomName);
                 return 0m;
             }
 
-            // 2. Scope to the target Rate Plan INSIDE that specific room card
-            var ratePlanBlock = roomCard.First.Locator("div.thumb-cards_rate")
+            var targetRoomCard = roomTitle.First.Locator("xpath=ancestor::div[contains(@class, 'thumb-cards_show') or contains(@class, 'thumb-cards_card')][1]");
+
+            if (await targetRoomCard.CountAsync() == 0)
+            {
+                _logger.LogWarning("[Scraper] Could not find parent room card container for: {RoomName}", targetRoomName);
+                return 0m;
+            }
+
+            var targetRateBlock = targetRoomCard.Locator("div.thumb-cards_rate")
                 .Filter(new() { HasText = targetRatePlan });
 
-            if (await ratePlanBlock.CountAsync() == 0)
+            if (await targetRateBlock.CountAsync() == 0)
             {
-                _logger.LogWarning("[Scraper] Rate plan '{RatePlan}' not found inside room '{RoomName}'", targetRatePlan, targetRoomName);
+                _logger.LogWarning("[Scraper] Rate plan '{RatePlan}' not found under room '{RoomName}'", targetRatePlan, targetRoomName);
                 return 0m;
             }
 
-            // 3. Extract price text from selector
-            string priceText = await ratePlanBlock.First.Locator(".thumb-cards_price").First.InnerTextAsync();
+            var priceLocator = targetRateBlock.First.Locator("[data-testid='regular-price'], .thumb-cards_price").First;
+            string priceText = await priceLocator.InnerTextAsync();
 
             if (decimal.TryParse(priceText.Replace("$", "").Replace(",", "").Trim(), out var price))
             {
-                _logger.LogInformation("[Scraper] Successfully parsed price for {RoomName}: ${Price}", targetRoomName, price);
+                _logger.LogInformation("[Scraper] Successfully extracted exact price for {RoomName}: ${Price}", targetRoomName, price);
                 return price;
             }
 
-            // 4. Scoped Regex Fallback (Search only inside the rate plan block, not entire body)
-            _logger.LogWarning("[Scraper] Direct selector parse failed. Attempting Scoped Regex fallback...");
-            string blockText = await ratePlanBlock.First.InnerTextAsync();
-            price = TryParsePriceFromText(blockText);
+            _logger.LogWarning("[Scraper] Selector parsing failed. Attempting scoped regex fallback...");
+            string rateBlockText = await targetRateBlock.First.InnerTextAsync();
+            price = TryParsePriceFromText(rateBlockText);
 
             if (price > 0m)
             {
-                _logger.LogInformation("[Scraper] Successfully parsed price via Scoped Regex fallback: ${Price}", price);
+                _logger.LogInformation("[Scraper] Successfully parsed price via Scoped Regex: ${Price}", price);
                 return price;
             }
 
-            _logger.LogWarning("[Scraper] Failed to parse price for target room.");
+            _logger.LogWarning("[Scraper] Failed to parse price for {RoomName}.", targetRoomName);
             return 0m;
         }
         catch (Exception ex)

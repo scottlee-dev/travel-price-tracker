@@ -121,11 +121,22 @@ void SavePriceHistoryAndGenerateChart(decimal currentPrice)
     plt.SavePng("price_trend.png", 800, 400);
 }
 
-
-
 void UpdateReadme(decimal currentPrice, decimal targetPrice, string room, string rate, DateTime inDate, DateTime outDate)
 {
     string readmePath = "README.md";
+
+    // Convert UTC to Eastern Time (EDT/EST) cross-platform
+    DateTime easternTime;
+    try
+    {
+        var tz = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+        easternTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+    }
+    catch
+    {
+        var tz = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+        easternTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+    }
 
     string dashboardContent = $@"<!-- START_DASHBOARD -->
 ## Price Trend Graph
@@ -143,7 +154,7 @@ void UpdateReadme(decimal currentPrice, decimal targetPrice, string room, string
 | **Current Price** | **${currentPrice}** |
 | **Target Threshold** | **${targetPrice}** |
 | **Status** | {(currentPrice <= targetPrice ? "**DEAL DETECTED**" : "**Monitoring**")} |
-| **Last Updated** | `{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC` |
+| **Last Updated** | `{easternTime:yyyy-MM-dd HH:mm:ss} EDT` |
 <!-- END_DASHBOARD -->";
 
     string content = File.Exists(readmePath)
