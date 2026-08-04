@@ -51,9 +51,13 @@ public class OfficialResortScraperService
 
         await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 60000 });
 
-        await page.WaitForSelectorAsync(".rate-plan", new() { Timeout = 90000 });
+        await page.WaitForSelectorAsync("h3.app_subheading2", new() { Timeout = 120000 });
 
-        var ratePlanBlock = page.Locator($"text={targetRatePlan}").Locator("..");
+        // Find the specific rate plan
+        var ratePlanBlock = page
+        .Locator($"h3.app_subheading2:has-text('{targetRatePlan}')")
+        .Locator("..")
+        .Locator("..");
 
         if (await ratePlanBlock.CountAsync() == 0)
         {
@@ -61,10 +65,8 @@ public class OfficialResortScraperService
             return 0m;
         }
 
-        // -----------------------------
-        // NEW: Selector-based price read
-        // -----------------------------
-        var priceText = await ratePlanBlock.Locator(".price").InnerTextAsync();
+        // Extract price
+        var priceText = await ratePlanBlock.Locator(":scope .price").InnerTextAsync();
 
         if (!decimal.TryParse(priceText.Replace("$", "").Replace(",", ""), out var price))
         {
