@@ -9,10 +9,16 @@ public class EmailService
 {
     public async Task SendEmailAsync(string subject, string body)
     {
-        string senderEmail = Environment.GetEnvironmentVariable("EmailSettings__SenderEmail");
-        string senderPassword = Environment.GetEnvironmentVariable("EmailSettings__SenderPassword");
-        string senderName = Environment.GetEnvironmentVariable("EmailSettings__SenderName");
-        string recipientEmail = Environment.GetEnvironmentVariable("EmailSettings__RecipientEmail");
+        string senderEmail = Environment.GetEnvironmentVariable("EmailSettings__SenderEmail") ?? "";
+        string senderPassword = Environment.GetEnvironmentVariable("EmailSettings__SenderPassword") ?? "";
+        string senderName = Environment.GetEnvironmentVariable("EmailSettings__SenderName") ?? "Cancun Price Tracker";
+        string recipientEmail = Environment.GetEnvironmentVariable("EmailSettings__RecipientEmail") ?? senderEmail;
+
+        if (string.IsNullOrWhiteSpace(senderEmail) || string.IsNullOrWhiteSpace(senderPassword))
+        {
+            Console.WriteLine("[EmailService] Email settings or credentials are missing. Skipping email dispatch.");
+            return;
+        }
 
         string smtpServer = "smtp.gmail.com";
         int smtpPort = 587;
@@ -40,13 +46,4 @@ public class EmailService
             Console.WriteLine($"[EmailService] Failed to send email: {ex.Message}");
         }
     }
-
-    public void SendAlert(decimal price)
-    {
-        string subject = $"[PRICE DROP ALERT] Cancun Resort Deal - ${price}";
-        string body = $"The price dropped below your target of ${TargetPrice}\n\nCurrent Price: ${price}\nBook it now before it changes.";
-        SendEmailAsync(subject, body).Wait();
-    }
-
-    private const decimal TargetPrice = 950m;
 }

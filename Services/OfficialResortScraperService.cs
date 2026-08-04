@@ -1,19 +1,14 @@
 using System;
-using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
-using ScottPlot;
 
 namespace CancunScraper.Services;
 
 public class OfficialResortScraperService
 {
     private readonly ILogger<OfficialResortScraperService> _logger;
-    private const string CsvPath = "price_history.csv";
-    private const decimal TargetPrice = 950m;
 
     public OfficialResortScraperService(ILogger<OfficialResortScraperService> logger)
     {
@@ -24,18 +19,18 @@ public class OfficialResortScraperService
         string resortName, DateTime checkIn, DateTime checkOut,
         string targetRoomName, string targetRatePlan, int adults, int children)
     {
-        _logger.LogInformation("[Scraper] Initializing Playwright...");
+        _logger.LogInformation("[Scraper] Initializing Playwright browser instance...");
 
         using var playwright = await Playwright.CreateAsync();
         await using var browser = await playwright.Chromium.LaunchAsync(new()
         {
             Headless = true,
-            SlowMo = 250
+            SlowMo = 100
         });
 
         var context = await browser.NewContextAsync(new()
         {
-            UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+            UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             ViewportSize = new() { Width = 1920, Height = 1080 },
             BypassCSP = true,
             JavaScriptEnabled = true
@@ -43,114 +38,62 @@ public class OfficialResortScraperService
 
         var page = await context.NewPageAsync();
 
-        string url =
-            $"https://be.synxis.com/?adult={adults}&arrive={checkIn:yyyy-MM-dd}&chain=10237&child={children}" +
-            $"&currency=USD&depart={checkOut:yyyy-MM-dd}&hotel=56627&level=hotel&locale=en-US&productcurrency=USD&rooms=1";
+        string url = $"https://be.synxis.com/?adult={adults}&arrive={checkIn:yyyy-MM-dd}&chain=10237&child={children}" +
+                    $"&currency=USD&depart={checkOut:yyyy-MM-dd}&hotel=56627&level=hotel&locale=en-US&productcurrency=USD&rooms=1";
 
-        _logger.LogInformation("[Scraper] Navigating: {Url}", url);
+        _logger.LogInformation("[Scraper] Navigating to booking page: {Url}", url);
 
-        await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 90000 });
-
-        await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
-        await page.WaitForTimeoutAsync(15000);
-
-        var ratePlanBlock = page.Locator("div.thumb-cards_rate.thumb-cards_show")
-            .Filter(new() { HasText = "I Prefer" });
-
-        if (await ratePlanBlock.CountAsync() == 0)
-        {
-            _logger.LogWarning("[Scraper] Rate plan not found: {RatePlan}", targetRatePlan);
-            return 0m;
-        }
-
-        string priceText;
         try
         {
-            priceText = await ratePlanBlock.Locator(".thumb-cards_price").First.InnerTextAsync();
-        }
-        catch (TimeoutException ex)
-        {
-            _logger.LogError(ex, "[Scraper] Timeout while locating price element.");
-            return 0m;
-        }
+            // Use DOMContentLoaded to prevent NetworkIdle timeout issues on heavy SPA sites
+            await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 60000 });
+            await page.WaitForTimeoutAsync(10000); // Allow dynamic DOM elements to settle
 
-        if (!decimal.TryParse(priceText.Replace("$", "").Replace(",", ""), out var price))
-        {
-            _logger.LogWarning("[Scraper] Selector price parse failed. Trying Regex fallback...");
+            var ratePlanBlock = page.Locator("div.thumb-cards_rate.thumb-cards_show")
+                .Filter(new() { HasText = targetRatePlan });
 
+            if (await ratePlanBlock.CountAsync() == 0)
+            {
+                _logger.LogWarning("[Scraper] Rate plan element not found: {RatePlan}", targetRatePlan);
+                return 0m;
+            }
+
+            string priceText = await ratePlanBlock.Locator(".thumb-cards_price").First.InnerTextAsync();
+
+            if (decimal.TryParse(priceText.Replace("$", "").Replace(",", "").Trim(), out var price))
+            {
+                _logger.LogInformation("[Scraper] Successfully parsed price via selector: ${Price}", price);
+                return price;
+            }
+
+            _logger.LogWarning("[Scraper] Direct selector parse failed. Attempting Regex fallback...");
             string pageText = await page.Locator("body").InnerTextAsync();
             price = TryParsePriceFromText(pageText);
 
-            if (price == 0m)
+            if (price > 0m)
             {
-                _logger.LogWarning("[Scraper] Regex fallback also failed.");
-                return 0m;
+                _logger.LogInformation("[Scraper] Successfully parsed price via Regex fallback: ${Price}", price);
+                return price;
             }
+
+            _logger.LogWarning("[Scraper] Failed to parse price using both selector and Regex.");
+            return 0m;
         }
-
-        _logger.LogInformation("[Scraper] SUCCESS! Parsed price: ${Price}", price);
-
-        LogPrice(price);
-        GenerateTrendGraph();
-        CheckPriceAlert(price);
-
-        return price;
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[Scraper] An exception occurred during scraping execution.");
+            return 0m;
+        }
     }
 
     private decimal TryParsePriceFromText(string text)
     {
         var match = Regex.Match(text, @"\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)");
         if (match.Success && decimal.TryParse(match.Groups[1].Value.Replace(",", ""), out var price))
+        {
             return price;
+        }
 
         return 0m;
-    }
-
-    private void LogPrice(decimal price)
-    {
-        var line = $"{DateTime.UtcNow:yyyy-MM-dd},{price}";
-        File.AppendAllText(CsvPath, line + Environment.NewLine);
-        _logger.LogInformation("[Scraper] Logged price to CSV.");
-    }
-
-    private void GenerateTrendGraph()
-    {
-        if (!File.Exists(CsvPath))
-        {
-            _logger.LogWarning("[Scraper] No CSV file found for graph.");
-            return;
-        }
-
-        var lines = File.ReadAllLines(CsvPath);
-        if (lines.Length == 0)
-        {
-            _logger.LogWarning("[Scraper] No data to plot.");
-            return;
-        }
-
-        var last = lines.TakeLast(10)
-            .Select(l => l.Split(','))
-            .Select(p => new { Date = DateTime.Parse(p[0]), Price = decimal.Parse(p[1]) })
-            .ToList();
-
-        var plt = new ScottPlot.Plot();
-        plt.Add.Scatter(
-            last.Select(x => x.Date.ToOADate()).ToArray(),
-            last.Select(x => (double)x.Price).ToArray()
-        );
-
-        plt.Axes.DateTimeTicksBottom();
-        plt.Title("10‑Day Price Trend");
-        plt.SavePng("price_trend.png", 600, 400);
-    }
-
-    private void CheckPriceAlert(decimal price)
-    {
-        if (price < TargetPrice)
-        {
-            var emailService = new EmailService();
-            emailService.SendAlert(price);
-            _logger.LogInformation("[Scraper] ALERT SENT — Price below target!");
-        }
     }
 }

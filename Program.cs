@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using CancunScraper.Services;
 using Microsoft.Extensions.Logging;
+using ScottPlot;
 
 var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
 var logger = loggerFactory.CreateLogger<OfficialResortScraperService>();
@@ -48,7 +51,10 @@ if (price <= 0)
     return;
 }
 
-// Email alert if below target
+// 1. Record history and generate chart image
+SavePriceHistoryAndGenerateChart(price);
+
+// 2. Email alert if below target
 if (price <= targetPrice)
 {
     var emailService = new EmailService();
@@ -60,13 +66,62 @@ if (price <= targetPrice)
     );
 }
 
-// Update README dashboard
+// 3. Update README dashboard
 UpdateReadme(price, targetPrice, targetRoomName, targetRatePlan, checkIn, checkOut);
 
 logger.LogInformation("Scraping job finished successfully.");
 
 
-// ------------------ Helper: Update README ------------------
+
+void SavePriceHistoryAndGenerateChart(decimal currentPrice)
+{
+    string historyFile = "price_history.csv";
+    string todayStr = DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+    if (!File.Exists(historyFile))
+    {
+        File.WriteAllText(historyFile, "Date,Price" + Environment.NewLine);
+    }
+
+    File.AppendAllText(historyFile, $"{todayStr},{currentPrice}" + Environment.NewLine);
+
+    var lines = File.ReadAllLines(historyFile);
+    if (lines.Length <= 1) return;
+
+    List<DateTime> dates = new();
+    List<double> prices = new();
+
+    // Skip(1) ignores header row ("Date,Price") to prevent FormatException
+    foreach (var line in lines.Skip(1))
+    {
+        if (string.IsNullOrWhiteSpace(line)) continue;
+
+        var parts = line.Split(',');
+        if (parts.Length == 2 && DateTime.TryParse(parts[0], out var d) && double.TryParse(parts[1], out var p))
+        {
+            dates.Add(d);
+            prices.Add(p);
+        }
+    }
+
+    if (dates.Count == 0) return;
+
+    var recentDates = dates.TakeLast(10).Select(d => d.ToOADate()).ToArray();
+    var recentPrices = prices.TakeLast(10).ToArray();
+
+    var plt = new ScottPlot.Plot();
+    var scatter = plt.Add.Scatter(recentDates, recentPrices);
+    scatter.LineWidth = 2.5f;
+    scatter.Color = ScottPlot.Color.FromHex("#007ACC");
+
+    plt.Axes.DateTimeTicksBottom();
+    plt.Title("Grand Fiesta Americana Coral Beach Price Trend");
+    plt.YLabel("Price ($)");
+
+    plt.SavePng("price_trend.png", 800, 400);
+}
+
+
 
 void UpdateReadme(decimal currentPrice, decimal targetPrice, string room, string rate, DateTime inDate, DateTime outDate)
 {
