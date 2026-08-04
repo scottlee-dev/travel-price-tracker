@@ -49,13 +49,15 @@ public class OfficialResortScraperService
 
         _logger.LogInformation("[Scraper] Navigating: {Url}", url);
 
-        await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 60000 });
+        await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 90000 });
+
+        await page.WaitForTimeoutAsync(10000);
 
         await page.WaitForSelectorAsync("h3.app_subheading2", new() { Timeout = 120000 });
 
-        // Find the specific rate plan (stable version)
+        // Find rate plan (regex 매칭으로 안정화)
         var ratePlanHeader = page.Locator("h3.app_subheading2")
-            .Filter(new() { HasText = targetRatePlan });
+    .Filter(new() { HasText = "I Prefer" });
 
         var ratePlanBlock = ratePlanHeader.Locator("xpath=../..");
 
@@ -65,7 +67,6 @@ public class OfficialResortScraperService
             return 0m;
         }
 
-        // Extract price (deep child-safe)
         var priceText = await ratePlanBlock.Locator(".price").First.InnerTextAsync();
 
         if (!decimal.TryParse(priceText.Replace("$", "").Replace(",", ""), out var price))
