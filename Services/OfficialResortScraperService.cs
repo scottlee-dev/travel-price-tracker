@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
@@ -31,6 +32,7 @@ public class OfficialResortScraperService
             Headless = true,
             SlowMo = 250
         });
+
         var context = await browser.NewContextAsync(new()
         {
             UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
@@ -51,7 +53,6 @@ public class OfficialResortScraperService
 
         await page.WaitForSelectorAsync(".rate-plan", new() { Timeout = 90000 });
 
-
         var ratePlanBlock = page.Locator($"text={targetRatePlan}").Locator("..");
 
         if (await ratePlanBlock.CountAsync() == 0)
@@ -60,12 +61,56 @@ public class OfficialResortScraperService
             return 0m;
         }
 
+        // -----------------------------
+        // NEW: Selector-based price read
+        // -----------------------------
         var priceText = await ratePlanBlock.Locator(".price").InnerTextAsync();
 
         if (!decimal.TryParse(priceText.Replace("$", "").Replace(",", ""), out var price))
         {
-            _logger.LogWarning("[Scraper] Failed to parse price: {Text}", priceText);
-            return 0m;
+            _logger.LogWarning("[Scraper] Selector price parse failed. Trying Regex fallback...");
+
+            // -----------------------------
+            // OLD: Regex fallback logic
+            // -----------------------------
+            string pageText = await page.Locator("body").InnerTextAsync();
+            decimal parsedPrice = 0m;
+
+            // Old targeted regex
+            Match match = Regex.Match(
+                pageText,
+                @"I\s*PREFER\s*OFFER[^$]*\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)",
+                RegexOptions.IgnoreCase
+            );
+
+            if (match.Success)
+            {
+                string priceString = match.Groups[1].Value.Replace(",", "");
+                decimal.TryParse(priceString, out parsedPrice);
+            }
+
+            // Fallback regex
+            if (parsedPrice == 0m)
+            {
+                Match fallbackMatch = Regex.Match(
+                    pageText,
+                    @"\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)"
+                );
+
+                if (fallbackMatch.Success)
+                {
+                    string priceString = fallbackMatch.Groups[1].Value.Replace(",", "");
+                    decimal.TryParse(priceString, out parsedPrice);
+                }
+            }
+
+            if (parsedPrice == 0m)
+            {
+                _logger.LogWarning("[Scraper] Regex fallback also failed.");
+                return 0m;
+            }
+
+            price = parsedPrice;
         }
 
         _logger.LogInformation("[Scraper] SUCCESS! Parsed price: ${Price}", price);
