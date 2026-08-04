@@ -16,33 +16,33 @@ builder.Services.AddScoped<EmailService>();
 
 using var host = builder.Build();
 
-var logger = host.Services.GetRequiredService<ILogger<Program>>();
+var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Scraper");
 logger.LogInformation("Starting Cancun price scraping job on GitHub Actions...");
 
+// --- Environment Variables ---
 string searchRoom = Environment.GetEnvironmentVariable("SEARCH_ROOM")
     ?? "Ocean Front Suite Double (2 Queen)";
 
 string searchRate = Environment.GetEnvironmentVariable("SEARCH_RATE")
     ?? "I Prefer Member Rate";
 
-string thresholdEnv = Environment.GetEnvironmentVariable("TARGET_THRESHOLD")
-    ?? "955.00";
+decimal targetThreshold = decimal.TryParse(
+    Environment.GetEnvironmentVariable("TARGET_THRESHOLD"), out var th)
+    ? th : 955.00m;
 
-decimal targetThreshold = decimal.Parse(thresholdEnv);
+DateTime checkIn = DateTime.TryParse(
+    Environment.GetEnvironmentVariable("CHECK_IN"), out var ci)
+    ? ci : new DateTime(2027, 3, 22);
 
-string checkInEnv = Environment.GetEnvironmentVariable("CHECK_IN")
-    ?? "2027-03-22";
+DateTime checkOut = DateTime.TryParse(
+    Environment.GetEnvironmentVariable("CHECK_OUT"), out var co)
+    ? co : new DateTime(2027, 3, 26);
 
-string checkOutEnv = Environment.GetEnvironmentVariable("CHECK_OUT")
-    ?? "2027-03-26";
+int routineInterval = int.TryParse(
+    Environment.GetEnvironmentVariable("ROUTINE_INTERVAL_DAYS"), out var ri)
+    ? ri : 3;
 
-DateTime checkIn = DateTime.Parse(checkInEnv);
-DateTime checkOut = DateTime.Parse(checkOutEnv);
-
-int routineInterval = int.Parse(
-    Environment.GetEnvironmentVariable("ROUTINE_INTERVAL_DAYS") ?? "3"
-);
-
+// --- Main Execution ---
 try
 {
     using var scope = host.Services.CreateScope();
@@ -66,7 +66,9 @@ try
             logger.LogInformation("PRICE DROP ALERT! Sending email...");
             await emailService.SendEmailAsync(
                 subject: $"[PRICE DROP ALERT] Cancun Resort Deal - ${currentPrice}",
-                body: $"The price has dropped below your target of ${targetThreshold}\n\nCurrent Price: ${currentPrice}\nRoom: {searchRoom}\nRate Plan: {searchRate}\n\nBook it now before it changes."
+                body: $"The price dropped below your target of ${targetThreshold}\n\n" +
+                      $"Current Price: ${currentPrice}\nRoom: {searchRoom}\nRate Plan: {searchRate}\n\n" +
+                      $"Book it now before it changes."
             );
         }
 
@@ -75,12 +77,17 @@ try
             logger.LogInformation("Sending routine status report email...");
             await emailService.SendEmailAsync(
                 subject: $"[Status Report] Cancun Tracker Running (Current: ${currentPrice})",
-                body: $"The price tracker executed.\n\n- Current Price: ${currentPrice}\n- Target Threshold: ${targetThreshold}\n- Room: {searchRoom}\n- Rate Plan: {searchRate}\n- Checked At: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC\n\nRoutine interval: {routineInterval} days."
+                body: $"The price tracker executed.\n\n" +
+                      $"- Current Price: ${currentPrice}\n" +
+                      $"- Target Threshold: ${targetThreshold}\n" +
+                      $"- Room: {searchRoom}\n" +
+                      $"- Rate Plan: {searchRate}\n" +
+                      $"- Checked At: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC\n" +
+                      $"Routine interval: {routineInterval} days."
             );
         }
 
         SavePriceHistoryAndGenerateChart(currentPrice);
-
         UpdateReadme(currentPrice, targetThreshold, searchRoom, searchRate, checkIn, checkOut);
     }
 
@@ -92,28 +99,33 @@ catch (Exception ex)
     Environment.ExitCode = 1;
 }
 
-
-
+// --- Helper Methods ---
 static void SavePriceHistoryAndGenerateChart(decimal currentPrice)
 {
     string historyFile = "price_history.csv";
     string todayStr = DateTime.UtcNow.ToString("yyyy-MM-dd");
 
-    if (!File.Exists(historyFile))
+    lock (typeof(Program))
     {
-        File.WriteAllText(historyFile, "Date,Price\n");
+        if (!File.Exists(historyFile))
+            File.WriteAllText(historyFile, "Date,Price\n");
+
+        File.AppendAllText(historyFile, $"{todayStr},{currentPrice}\n");
     }
 
-    File.AppendAllText(historyFile, $"{todayStr},{currentPrice}\n");
+    var lines = File.ReadAllLines(historyFile)
+        .Skip(1)
+        .Where(l => !string.IsNullOrWhiteSpace(l));
 
-    var lines = File.ReadAllLines(historyFile).Skip(1).Where(l => !string.IsNullOrWhiteSpace(l));
     List<DateTime> dates = new();
     List<double> prices = new();
 
     foreach (var line in lines)
     {
         var parts = line.Split(',');
-        if (parts.Length == 2 && DateTime.TryParse(parts[0], out var d) && double.TryParse(parts[1], out var p))
+        if (parts.Length == 2 &&
+            DateTime.TryParse(parts[0], out var d) &&
+            double.TryParse(parts[1], out var p))
         {
             dates.Add(d);
             prices.Add(p);
@@ -122,7 +134,7 @@ static void SavePriceHistoryAndGenerateChart(decimal currentPrice)
 
     if (dates.Count == 0) return;
 
-    var plt = new ScottPlot.Plot();
+    var plt = new Plot();
     double[] xs = dates.Select(d => d.ToOADate()).ToArray();
     double[] ys = prices.ToArray();
 
@@ -140,17 +152,12 @@ static void SavePriceHistoryAndGenerateChart(decimal currentPrice)
 static void UpdateReadme(decimal currentPrice, decimal targetPrice, string room, string rate, DateTime inDate, DateTime outDate)
 {
     string readmePath = "README.md";
-    bool isDeal = currentPrice <= targetPrice;
-    string statusBadge = isDeal 
-        ? " **DEAL DETECTED (Below Target!)**" 
-        : " **Monitoring (Above Target)**";
-
     string dashboardContent = $@"<!-- START_DASHBOARD -->
-##  Price Trend Graph
+## Price Trend Graph
 
 ![Price Trend](price_trend.png)
 
-##  Live Dashboard
+## Live Dashboard
 
 | Attribute | Details |
 |---|---|
@@ -160,46 +167,28 @@ static void UpdateReadme(decimal currentPrice, decimal targetPrice, string room,
 | **Dates** | {inDate:yyyy-MM-dd} ~ {outDate:yyyy-MM-dd} |
 | **Current Price** | **${currentPrice}** |
 | **Target Threshold** | **${targetPrice}** |
-| **Status** | {statusBadge} |
+| **Status** | {(currentPrice <= targetPrice ? "**DEAL DETECTED**" : "**Monitoring**")} |
 | **Last Updated** | `{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC` |
 <!-- END_DASHBOARD -->";
 
-    if (File.Exists(readmePath))
+    string content = File.Exists(readmePath)
+        ? File.ReadAllText(readmePath)
+        : "";
+
+    int start = content.IndexOf("<!-- START_DASHBOARD -->");
+    int end = content.IndexOf("<!-- END_DASHBOARD -->");
+
+    if (start >= 0 && end > start)
     {
-        string existingContent = File.ReadAllText(readmePath);
-        
-        if (existingContent.Contains("<!-- START_DASHBOARD -->") && existingContent.Contains("<!-- END_DASHBOARD -->"))
-        {
-            int startIndex = existingContent.IndexOf("<!-- START_DASHBOARD -->");
-            int endIndex = existingContent.IndexOf("<!-- END_DASHBOARD -->") + "<!-- END_DASHBOARD -->".Length;
-            
-            string newContent = existingContent.Remove(startIndex, endIndex - startIndex)
-                                               .Insert(startIndex, dashboardContent);
-            
-            File.WriteAllText(readmePath, newContent);
-            return;
-        }
+        string before = content[..start];
+        string after = content[(end + "<!-- END_DASHBOARD -->".Length)..];
+        File.WriteAllText(readmePath, before + dashboardContent + after);
     }
-
-    string fullTemplate = $@"#  Cancun Resort Price Tracker
-
-Automated price tracking pipeline built with **C# .NET**, **Playwright**, and **GitHub Actions**.
-
-## 📌 Project Overview
-This project continuously monitors room rates for Grand Fiesta Americana Coral Beach Cancun Resort. 
-When a drop below the target price threshold is detected, automated email notifications are dispatched.
-
-{dashboardContent}
-
-## 🏗️ Architecture
-- **Language & Framework:** C# .NET 10 / Playwright
-- **Automation:** GitHub Actions (Cron Scheduler)
-- **Data Persistence:** PostgreSQL / CSV History
-- **Visualization:** ScottPlot
-
----
-*This repository is automatically updated by GitHub Actions when new price points are scraped.*
-";
-
-    File.WriteAllText(readmePath, fullTemplate);
+    else
+    {
+        File.WriteAllText(readmePath,
+            "# Cancun Resort Price Tracker\n\n" +
+            "Automated price tracking pipeline built with **C# .NET**, **Playwright**, and **GitHub Actions**.\n\n" +
+            dashboardContent);
+    }
 }

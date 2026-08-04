@@ -1,6 +1,6 @@
 using System;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
 
@@ -19,63 +19,54 @@ public class OfficialResortScraperService
         string resortName, DateTime checkIn, DateTime checkOut,
         string targetRoomName, string targetRatePlan, int adults, int children)
     {
-        _logger.LogInformation("[OfficialScraper] Initializing Playwright engine for Direct Booking Portal...");
+        _logger.LogInformation("[OfficialScraper] Initializing Playwright engine...");
 
         using var playwright = await Playwright.CreateAsync();
-        
-        await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+        await using var browser = await playwright.Chromium.LaunchAsync(new()
         {
             Headless = true
         });
 
-        var context = await browser.NewContextAsync(new BrowserNewContextOptions
+        var context = await browser.NewContextAsync(new()
         {
-            UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            ViewportSize = new ViewportSize { Width = 1920, Height = 1080 }
+            UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+            ViewportSize = new() { Width = 1920, Height = 1080 },
+            BypassCSP = true,
+            JavaScriptEnabled = true
         });
 
         var page = await context.NewPageAsync();
 
-        string url = $"https://be.synxis.com/?adult={adults}&arrive={checkIn:yyyy-MM-dd}&chain=10237&child={children}&currency=USD&depart={checkOut:yyyy-MM-dd}&hotel=56627&level=hotel&locale=en-US&productcurrency=USD&rooms=1";
+        string url =
+            $"https://be.synxis.com/?adult={adults}&arrive={checkIn:yyyy-MM-dd}&chain=10237&child={children}" +
+            $"&currency=USD&depart={checkOut:yyyy-MM-dd}&hotel=56627&level=hotel&locale=en-US&productcurrency=USD&rooms=1";
 
-        _logger.LogInformation("[OfficialScraper] Navigating directly to Synxis Booking URL:\n -> {Url}", url);
+        _logger.LogInformation("[OfficialScraper] Navigating: {Url}", url);
 
-        await page.GotoAsync(url, new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 60000 });
+        await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 60000 });
 
-        _logger.LogInformation("[OfficialScraper] Waiting 10 seconds for dynamic pricing data to load...");
-        await page.WaitForTimeoutAsync(10000); 
+        // Wait for rate plans to load
+        await page.WaitForSelectorAsync(".rate-plan", new() { Timeout = 30000 });
 
-        // Extract text specifically from the price area or fallback to full body text
-        string pageText = await page.Locator("body").InnerTextAsync();
+        // Find the rate plan block
+        var ratePlanBlock = page.Locator($"text={targetRatePlan}").Locator("..");
 
-        _logger.LogInformation("[OfficialScraper] Parsing raw text for target rate plan: '{RatePlan}'...", targetRatePlan);
-
-        decimal parsedPrice = 0m;
-
-        // Specific Regex to catch the price format near the rate plan
-        Match match = Regex.Match(pageText, @"I\s*PREFER\s*OFFER[^$]*\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)", RegexOptions.IgnoreCase);
-
-        if (match.Success)
+        if (await ratePlanBlock.CountAsync() == 0)
         {
-            string priceString = match.Groups[1].Value.Replace(",", "");
-            if (decimal.TryParse(priceString, out parsedPrice))
-            {
-                _logger.LogInformation("[OfficialScraper] SUCCESS! Parsed targeted rate price: ${Price} USD", parsedPrice);
-            }
+            _logger.LogWarning("[OfficialScraper] Rate plan not found: {RatePlan}", targetRatePlan);
+            return 0m;
         }
 
-        // Fallback: if specific regex fails, grab the first valid price on page
-        if (parsedPrice == 0m)
+        // Extract price inside the rate plan block
+        var priceText = await ratePlanBlock.Locator(".price").InnerTextAsync();
+
+        if (decimal.TryParse(priceText.Replace("$", "").Replace(",", ""), out var price))
         {
-            Match fallbackMatch = Regex.Match(pageText, @"\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)");
-            if (fallbackMatch.Success)
-            {
-                string priceString = fallbackMatch.Groups[1].Value.Replace(",", "");
-                decimal.TryParse(priceString, out parsedPrice);
-                _logger.LogInformation("[OfficialScraper] Fallback matched price: ${Price} USD", parsedPrice);
-            }
+            _logger.LogInformation("[OfficialScraper] SUCCESS! Parsed price: ${Price}", price);
+            return price;
         }
 
-        return parsedPrice;
+        _logger.LogWarning("[OfficialScraper] Failed to parse price text: {Text}", priceText);
+        return 0m;
     }
 }

@@ -16,18 +16,19 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetch full commit history to prevent rebase conflicts
+          fetch-depth: 0
 
-      - name: Setup .NET
+      - name: Setup .NET 10 Preview
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+          include-prerelease: true   
 
       - name: Install Playwright & Dependencies
         run: |
-          dotnet build
           dotnet tool install --global Microsoft.Playwright.CLI
           playwright install --with-deps chromium
+          dotnet build --configuration Release
 
       - name: Run Scraper
         env:
@@ -45,9 +46,12 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
+
           git add README.md price_trend.png price_history.csv
+
           if ! git diff-index --quiet HEAD; then
-            git commit -m "auto-update: price trend chart and README [skip ci]"
-            git pull --rebase origin main
+            git commit -m "auto-update: dashboard refresh [skip scraper]"
+            git fetch origin main
+            git merge --strategy-option ours origin/main
             git push origin main
           fi
