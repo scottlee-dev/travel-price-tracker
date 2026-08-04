@@ -40,10 +40,9 @@ jobs:
           SEARCH_RATE: "I Prefer Member Rate"
         run: dotnet run --configuration Release
 
-      - name: Commit & Push Dashboard Updates
+- name: Commit & Push Dashboard Updates
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
           git add README.md price_trend.png price_history.csv
-          git diff-index --quiet HEAD || git commit -m "📊 auto-update: price trend chart and README [skip ci]"
-          git push
+          git diff-index --quiet HEAD || (git pull --rebase origin main && git commit -m " auto-update: price trend chart and README [skip ci]" && git push)
