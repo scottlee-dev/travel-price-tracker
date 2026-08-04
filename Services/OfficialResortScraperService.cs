@@ -53,11 +53,11 @@ public class OfficialResortScraperService
 
         await page.WaitForSelectorAsync("h3.app_subheading2", new() { Timeout = 120000 });
 
-        // Find the specific rate plan
-        var ratePlanBlock = page
-        .Locator($"h3.app_subheading2:has-text('{targetRatePlan}')")
-        .Locator("..")
-        .Locator("..");
+        // Find the specific rate plan (stable version)
+        var ratePlanHeader = page.Locator("h3.app_subheading2")
+            .Filter(new() { HasText = targetRatePlan });
+
+        var ratePlanBlock = ratePlanHeader.Locator("xpath=../..");
 
         if (await ratePlanBlock.CountAsync() == 0)
         {
@@ -65,20 +65,16 @@ public class OfficialResortScraperService
             return 0m;
         }
 
-        // Extract price
-        var priceText = await ratePlanBlock.Locator(":scope .price").InnerTextAsync();
+        // Extract price (deep child-safe)
+        var priceText = await ratePlanBlock.Locator(".price").First.InnerTextAsync();
 
         if (!decimal.TryParse(priceText.Replace("$", "").Replace(",", ""), out var price))
         {
             _logger.LogWarning("[Scraper] Selector price parse failed. Trying Regex fallback...");
 
-            // -----------------------------
-            // OLD: Regex fallback logic
-            // -----------------------------
             string pageText = await page.Locator("body").InnerTextAsync();
             decimal parsedPrice = 0m;
 
-            // Old targeted regex
             Match match = Regex.Match(
                 pageText,
                 @"I\s*PREFER\s*OFFER[^$]*\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)",
@@ -91,7 +87,6 @@ public class OfficialResortScraperService
                 decimal.TryParse(priceString, out parsedPrice);
             }
 
-            // Fallback regex
             if (parsedPrice == 0m)
             {
                 Match fallbackMatch = Regex.Match(
