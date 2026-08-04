@@ -22,13 +22,12 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-          include-prerelease: true
 
       - name: Install Playwright & Dependencies
         run: |
+          dotnet build --configuration Release
           dotnet tool install --global Microsoft.Playwright.CLI
           playwright install --with-deps chromium
-          dotnet build --configuration Release
 
       - name: Run Scraper
         env:
