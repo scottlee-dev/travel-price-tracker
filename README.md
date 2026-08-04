@@ -8,6 +8,22 @@ This system monitors real‑time room rates, logs historical prices to CSV, and 
 
 ## Live Dashboard
 <!-- START_DASHBOARD -->
+## Price Trend Graph
+
+![Price Trend](price_trend.png)
+
+## Live Dashboard
+
+| Attribute | Details |
+|---|---|
+| **Resort** | Grand Fiesta Americana Coral Beach Cancun |
+| **Room Type** | `Ocean Front Suite Double (2 Queen)` |
+| **Rate Plan** | `I Prefer Member Rate` |
+| **Dates** | 2027-03-22 ~ 2027-03-26 |
+| **Current Price** | **$966** |
+| **Target Threshold** | **$970.00** |
+| **Status** | **DEAL DETECTED** |
+| **Last Updated** | `2026-08-04 21:56:07 UTC` |
 <!-- END_DASHBOARD -->
 
 ---
