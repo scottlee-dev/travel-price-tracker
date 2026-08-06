@@ -18,9 +18,9 @@ string targetRatePlan = Environment.GetEnvironmentVariable("SEARCH_RATE")
 
 decimal targetPrice = decimal.TryParse(
     Environment.GetEnvironmentVariable("TARGET_THRESHOLD"), out var th)
-    ? th : 955m;
+    ? th : 800m;
 
-// Dates (static or environment)
+// Dates
 DateTime checkIn = DateTime.TryParse(
     Environment.GetEnvironmentVariable("CHECK_IN"), out var ci)
     ? ci : new DateTime(2027, 3, 22);
@@ -57,16 +57,7 @@ SavePriceHistoryAndGenerateChart(price);
 // 2. Email alert if below target
 if (price <= targetPrice)
 {
-    string senderEmail = Environment.GetEnvironmentVariable("EMAIL_SENDER_EMAIL") 
-        ?? Environment.GetEnvironmentVariable("EmailSettings__SenderEmail") ?? "";
-    string senderPassword = Environment.GetEnvironmentVariable("EMAIL_SENDER_PASSWORD") 
-        ?? Environment.GetEnvironmentVariable("EmailSettings__SenderPassword") ?? "";
-    string senderName = Environment.GetEnvironmentVariable("EMAIL_SENDER_NAME") 
-        ?? Environment.GetEnvironmentVariable("EmailSettings__SenderName") ?? "Cancun Price Tracker";
-    string recipientEmail = Environment.GetEnvironmentVariable("EMAIL_RECIPIENT_EMAIL") 
-        ?? Environment.GetEnvironmentVariable("EmailSettings__RecipientEmail") ?? "";
-
-var emailService = new EmailService();
+    var emailService = new EmailService();
     await emailService.SendEmailAsync(
         subject: $"[PRICE DROP ALERT] Cancun Resort Deal - ${price}",
         body: $"The price dropped below your target of ${targetPrice}\n\n" +
@@ -75,7 +66,7 @@ var emailService = new EmailService();
     );
 }
 
-
+// 3. Update Readme
 UpdateReadme(price, targetPrice, targetRoomName, targetRatePlan, checkIn, checkOut);
 
 logger.LogInformation("Scraping job finished successfully.");
@@ -84,14 +75,27 @@ logger.LogInformation("Scraping job finished successfully.");
 void SavePriceHistoryAndGenerateChart(decimal currentPrice)
 {
     string historyFile = "price_history.csv";
-    string todayStr = DateTime.UtcNow.ToString("yyyy-MM-dd");
+    
+    DateTime nowEastern;
+    try
+    {
+        var tz = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+        nowEastern = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+    }
+    catch
+    {
+        var tz = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+        nowEastern = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+    }
+
+    string timeStr = nowEastern.ToString("yyyy-MM-dd HH:mm");
 
     if (!File.Exists(historyFile))
     {
         File.WriteAllText(historyFile, "Date,Price" + Environment.NewLine);
     }
 
-    File.AppendAllText(historyFile, $"{todayStr},{currentPrice}" + Environment.NewLine);
+    File.AppendAllText(historyFile, $"{timeStr},{currentPrice}" + Environment.NewLine);
 
     var lines = File.ReadAllLines(historyFile);
     if (lines.Length <= 1) return;
@@ -113,12 +117,14 @@ void SavePriceHistoryAndGenerateChart(decimal currentPrice)
 
     if (dates.Count == 0) return;
 
-    var recentDates = dates.TakeLast(10).Select(d => d.ToOADate()).ToArray();
-    var recentPrices = prices.TakeLast(10).ToArray();
+    var recentDates = dates.TakeLast(15).Select(d => d.ToOADate()).ToArray();
+    var recentPrices = prices.TakeLast(15).ToArray();
 
     var plt = new ScottPlot.Plot();
+
     var scatter = plt.Add.Scatter(recentDates, recentPrices);
     scatter.LineWidth = 2.5f;
+    scatter.MarkerSize = 5;
     scatter.Color = ScottPlot.Color.FromHex("#007ACC");
 
     plt.Axes.DateTimeTicksBottom();
