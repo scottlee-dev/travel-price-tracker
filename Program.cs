@@ -72,67 +72,6 @@ UpdateReadme(price, targetPrice, targetRoomName, targetRatePlan, checkIn, checkO
 logger.LogInformation("Scraping job finished successfully.");
 
 
-void SavePriceHistoryAndGenerateChart(decimal currentPrice)
-{
-    string historyFile = "price_history.csv";
-    
-    DateTime nowEastern;
-    try
-    {
-        var tz = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
-        nowEastern = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
-    }
-    catch
-    {
-        var tz = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
-        nowEastern = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
-    }
-
-    string timeStr = nowEastern.ToString("yyyy-MM-dd HH:mm");
-
-    if (!File.Exists(historyFile))
-    {
-        File.WriteAllText(historyFile, "Date,Price" + Environment.NewLine);
-    }
-
-    File.AppendAllText(historyFile, $"{timeStr},{currentPrice}" + Environment.NewLine);
-
-    var lines = File.ReadAllLines(historyFile);
-    if (lines.Length <= 1) return;
-
-    List<DateTime> dates = new();
-    List<double> prices = new();
-
-    foreach (var line in lines.Skip(1))
-    {
-        if (string.IsNullOrWhiteSpace(line)) continue;
-
-        var parts = line.Split(',');
-        if (parts.Length == 2 && DateTime.TryParse(parts[0], out var d) && double.TryParse(parts[1], out var p))
-        {
-            dates.Add(d);
-            prices.Add(p);
-        }
-    }
-
-    if (dates.Count == 0) return;
-
-    var recentDates = dates.TakeLast(15).Select(d => d.ToOADate()).ToArray();
-    var recentPrices = prices.TakeLast(15).ToArray();
-
-    var plt = new ScottPlot.Plot();
-
-    var scatter = plt.Add.Scatter(recentDates, recentPrices);
-    scatter.LineWidth = 2.5f;
-    scatter.MarkerSize = 5;
-    scatter.Color = ScottPlot.Color.FromHex("#007ACC");
-
-    plt.Axes.DateTimeTicksBottom();
-    plt.Title("Grand Fiesta Americana Coral Beach Price Trend");
-    plt.YLabel("Price ($)");
-
-    plt.SavePng("price_trend.png", 800, 400);
-}
 
 void UpdateReadme(decimal currentPrice, decimal targetPrice, string room, string rate, DateTime inDate, DateTime outDate)
 {
@@ -190,4 +129,70 @@ void UpdateReadme(decimal currentPrice, decimal targetPrice, string room, string
             "Automated price tracking pipeline built with **C# .NET**, **Playwright**, and **GitHub Actions**.\n\n" +
             dashboardContent);
     }
+}
+
+void SavePriceHistoryAndGenerateChart(decimal currentPrice)
+{
+    string rootDir = Directory.GetCurrentDirectory();
+    string historyFile = Path.Combine(rootDir, "price_history.csv");
+    string chartFile = Path.Combine(rootDir, "price_trend.png");
+
+    DateTime nowEastern;
+    try
+    {
+        var tz = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+        nowEastern = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+    }
+    catch
+    {
+        var tz = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+        nowEastern = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+    }
+
+    string timeStr = nowEastern.ToString("yyyy-MM-dd HH:mm");
+
+    if (!File.Exists(historyFile))
+    {
+        File.WriteAllText(historyFile, "Date,Price" + Environment.NewLine);
+    }
+
+    File.AppendAllText(historyFile, $"{timeStr},{currentPrice}" + Environment.NewLine);
+
+    var lines = File.ReadAllLines(historyFile);
+    if (lines.Length <= 1) return;
+
+    List<DateTime> dates = new();
+    List<double> prices = new();
+
+    foreach (var line in lines.Skip(1))
+    {
+        if (string.IsNullOrWhiteSpace(line)) continue;
+
+        var parts = line.Split(',');
+        if (parts.Length == 2 && DateTime.TryParse(parts[0], out var d) && double.TryParse(parts[1], out var p))
+        {
+            dates.Add(d);
+            prices.Add(p);
+        }
+    }
+
+    if (dates.Count == 0) return;
+
+    var recentDates = dates.TakeLast(15).Select(d => d.ToOADate()).ToArray();
+    var recentPrices = prices.TakeLast(15).ToArray();
+
+    var plt = new ScottPlot.Plot();
+
+    var scatter = plt.Add.Scatter(recentDates, recentPrices);
+    scatter.LineWidth = 2.5f;
+    scatter.MarkerSize = 5;
+    scatter.Color = ScottPlot.Color.FromHex("#007ACC");
+
+    plt.Axes.DateTimeTicksBottom();
+    plt.Title("Grand Fiesta Americana Coral Beach Price Trend");
+    plt.YLabel("Price ($)");
+
+
+
+    plt.SavePng(chartFile, 800, 400);
 }
