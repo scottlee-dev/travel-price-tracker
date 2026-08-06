@@ -9,14 +9,14 @@ public class EmailService
 {
     public async Task SendEmailAsync(string subject, string body)
     {
-        string senderEmail = Environment.GetEnvironmentVariable("EmailSettings__SenderEmail") ?? "";
-        string senderPassword = Environment.GetEnvironmentVariable("EmailSettings__SenderPassword") ?? "";
-        string senderName = Environment.GetEnvironmentVariable("EmailSettings__SenderName") ?? "Cancun Price Tracker";
-        string recipientEmail = Environment.GetEnvironmentVariable("EmailSettings__RecipientEmail") ?? senderEmail;
+        string senderEmail = GetEnv("EMAIL_SENDER_EMAIL", "EmailSettings__SenderEmail");
+        string senderPassword = GetEnv("EMAIL_SENDER_PASSWORD", "EmailSettings__SenderPassword");
+        string senderName = GetEnv("EMAIL_SENDER_NAME", "EmailSettings__SenderName", "Cancun Price Tracker");
+        string recipientEmail = GetEnv("EMAIL_RECIPIENT_EMAIL", "EmailSettings__RecipientEmail", senderEmail);
 
         if (string.IsNullOrWhiteSpace(senderEmail) || string.IsNullOrWhiteSpace(senderPassword))
         {
-            Console.WriteLine("[EmailService] Email settings or credentials are missing. Skipping email dispatch.");
+            Console.WriteLine("[EmailService] Email credentials missing. Skipping email dispatch.");
             return;
         }
 
@@ -25,12 +25,14 @@ public class EmailService
 
         try
         {
-            using var message = new MailMessage();
-            message.From = new MailAddress(senderEmail, senderName);
+            using var message = new MailMessage
+            {
+                From = new MailAddress(senderEmail, senderName),
+                Subject = subject,
+                Body = body,
+                IsBodyHtml = false
+            };
             message.To.Add(recipientEmail);
-            message.Subject = subject;
-            message.Body = body;
-            message.IsBodyHtml = false;
 
             using var smtpClient = new SmtpClient(smtpServer, smtpPort)
             {
@@ -45,5 +47,16 @@ public class EmailService
         {
             Console.WriteLine($"[EmailService] Failed to send email: {ex.Message}");
         }
+    }
+
+    private string GetEnv(string primaryKey, string secondaryKey, string defaultValue = "")
+    {
+        string? val = Environment.GetEnvironmentVariable(primaryKey);
+        if (!string.IsNullOrWhiteSpace(val)) return val;
+
+        val = Environment.GetEnvironmentVariable(secondaryKey);
+        if (!string.IsNullOrWhiteSpace(val)) return val;
+
+        return defaultValue;
     }
 }

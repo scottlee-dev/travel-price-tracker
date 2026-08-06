@@ -57,7 +57,16 @@ SavePriceHistoryAndGenerateChart(price);
 // 2. Email alert if below target
 if (price <= targetPrice)
 {
-    var emailService = new EmailService();
+    string senderEmail = Environment.GetEnvironmentVariable("EMAIL_SENDER_EMAIL") 
+        ?? Environment.GetEnvironmentVariable("EmailSettings__SenderEmail") ?? "";
+    string senderPassword = Environment.GetEnvironmentVariable("EMAIL_SENDER_PASSWORD") 
+        ?? Environment.GetEnvironmentVariable("EmailSettings__SenderPassword") ?? "";
+    string senderName = Environment.GetEnvironmentVariable("EMAIL_SENDER_NAME") 
+        ?? Environment.GetEnvironmentVariable("EmailSettings__SenderName") ?? "Cancun Price Tracker";
+    string recipientEmail = Environment.GetEnvironmentVariable("EMAIL_RECIPIENT_EMAIL") 
+        ?? Environment.GetEnvironmentVariable("EmailSettings__RecipientEmail") ?? "";
+
+var emailService = new EmailService();
     await emailService.SendEmailAsync(
         subject: $"[PRICE DROP ALERT] Cancun Resort Deal - ${price}",
         body: $"The price dropped below your target of ${targetPrice}\n\n" +
@@ -66,11 +75,10 @@ if (price <= targetPrice)
     );
 }
 
-// 3. Update README dashboard
+
 UpdateReadme(price, targetPrice, targetRoomName, targetRatePlan, checkIn, checkOut);
 
 logger.LogInformation("Scraping job finished successfully.");
-
 
 
 void SavePriceHistoryAndGenerateChart(decimal currentPrice)
@@ -91,7 +99,6 @@ void SavePriceHistoryAndGenerateChart(decimal currentPrice)
     List<DateTime> dates = new();
     List<double> prices = new();
 
-    // Skip(1) ignores header row ("Date,Price") to prevent FormatException
     foreach (var line in lines.Skip(1))
     {
         if (string.IsNullOrWhiteSpace(line)) continue;
@@ -125,7 +132,6 @@ void UpdateReadme(decimal currentPrice, decimal targetPrice, string room, string
 {
     string readmePath = "README.md";
 
-    // Convert UTC to Eastern Time (EDT/EST) cross-platform
     DateTime easternTime;
     try
     {
@@ -138,10 +144,13 @@ void UpdateReadme(decimal currentPrice, decimal targetPrice, string room, string
         easternTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
     }
 
+    long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    string imageUrl = $"price_trend.png?raw=true&v={timestamp}";
+
     string dashboardContent = $@"<!-- START_DASHBOARD -->
 ## Price Trend Graph
 
-![Price Trend](price_trend.png)
+![Price Trend]({imageUrl})
 
 ## Live Dashboard
 
@@ -157,9 +166,7 @@ void UpdateReadme(decimal currentPrice, decimal targetPrice, string room, string
 | **Last Updated** | `{easternTime:yyyy-MM-dd HH:mm:ss} EDT` |
 <!-- END_DASHBOARD -->";
 
-    string content = File.Exists(readmePath)
-        ? File.ReadAllText(readmePath)
-        : "";
+    string content = File.Exists(readmePath) ? File.ReadAllText(readmePath) : "";
 
     int start = content.IndexOf("<!-- START_DASHBOARD -->");
     int end = content.IndexOf("<!-- END_DASHBOARD -->");
